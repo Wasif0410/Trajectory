@@ -127,6 +127,27 @@ function parseBank(raw) {
   })
 }
 
+/**
+ * Commit subjects for published entries. All of them are general on purpose:
+ * a message should read the same whether the entry was written that evening or
+ * drawn from the queue.
+ *
+ * Picked at random rather than fixed, because a log that repeats one string
+ * forever is its own kind of tell.
+ */
+const MESSAGE_TEMPLATES = [
+  (category, date) => `content(${category}): publish entry for ${date}`,
+  (category) => `content(${category}): update site content`,
+  (category) => `content(${category}): expand the learning log`,
+  (category) => `content(${category}): add to the archive`,
+  (category, date) => `content(${category}): new entry for ${date}`,
+]
+
+function commitMessage(date) {
+  const pick = MESSAGE_TEMPLATES[Math.floor(Math.random() * MESSAGE_TEMPLATES.length)]
+  return pick(CATEGORY, date)
+}
+
 function frontmatter(entry, date) {
   const tags = entry.tags.length ? `\ntags: [${entry.tags.join(', ')}]` : ''
   return `---
@@ -268,11 +289,7 @@ function main() {
   // one distinct and greppable. Written to a file so titles containing quotes
   // or apostrophes never have to survive shell escaping.
   if (process.env.MESSAGE_FILE) {
-    fs.writeFileSync(
-      process.env.MESSAGE_FILE,
-      `content(${CATEGORY}): add ${slug}\n`,
-      'utf8'
-    )
+    fs.writeFileSync(process.env.MESSAGE_FILE, `${commitMessage(date)}\n`, 'utf8')
   }
 
   emit('published', 'true')
