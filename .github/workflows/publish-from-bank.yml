@@ -1,8 +1,10 @@
 name: Publish from bank
 
-# Draws the top entry from the private bank if the day has nothing in it yet.
-# Writing your own entry always wins: the script exits early when today
-# already has a file.
+# Draws up to one entry per category from the private bank, committing each
+# separately. A category with nothing banked is skipped, so a day produces
+# between zero and three commits depending on what is actually in the queue.
+#
+# Writing your own entry wins: a category already filed for today is skipped.
 #
 # 02:30 UTC is 22:30 in Toronto during EDT and 21:30 during EST. Late enough
 # that the day is genuinely missed, early enough to still land on today.
@@ -42,45 +44,59 @@ jobs:
         with:
           node-version: 22
 
-      - name: Draw an entry
+      - name: Draw one entry per category
         id: draw
-        run: node scripts/publish-from-bank.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
-
-      - name: Commit the entry
-        if: steps.draw.outputs.published == 'true'
+        env:
+          DRY: ${{ inputs.dry_run && '--dry-run' || '' }}
+          TITLE_FILE: ${{ runner.temp }}/publish-title.txt
         run: |
           git config user.name "Wasif Saeed"
           git config user.email "115382944+Wasif0410@users.noreply.github.com"
-          git add content/entries
-          git commit -m "${{ steps.draw.outputs.title }}"
-          git push
+          git -C bank config user.name "Wasif Saeed"
+          git -C bank config user.email "115382944+Wasif0410@users.noreply.github.com"
 
-      - name: Update the bank
-        if: steps.draw.outputs.published == 'true'
-        working-directory: bank
-        run: |
-          git config user.name "Wasif Saeed"
-          git config user.email "115382944+Wasif0410@users.noreply.github.com"
-          git add bank.md log.md
-          git commit -m "chore: publish ${{ steps.draw.outputs.slug }}"
-          git push
+          published=0
 
-      - name: Flag a low bank
-        if: steps.draw.outputs.low == 'true'
+          for category in professional personal fact; do
+            echo "::group::$category"
+            node scripts/publish-from-bank.mjs --category="$category" $DRY
+            echo "::endgroup::"
+
+            # A separate commit per entry, so each lands on its own.
+            if [ -n "$(git status --porcelain content/entries)" ]; then
+              git add content/entries
+              git commit -q -F "$TITLE_FILE"
+              git push -q
+              published=$((published + 1))
+            fi
+
+            if [ -n "$(git -C bank status --porcelain)" ]; then
+              git -C bank add bank.md log.md
+              git -C bank commit -q -m "chore: publish $category entry"
+              git -C bank push -q
+            fi
+          done
+
+          echo "published=$published" >> "$GITHUB_OUTPUT"
+          echo "Published $published entries."
+
+      # Only on real runs. A dry run should leave no trace, including issues.
+      - name: Flag an empty or exhausted bank
+        if: steps.draw.outputs.published == '0' && !inputs.dry_run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue create \
-            --title "Bank is running low (${{ steps.draw.outputs.remaining }} left)" \
-            --body "The publish job just drew from the bank and there are ${{ steps.draw.outputs.remaining }} entries left. Top it up in Trajectory-Bank when you get a chance." \
-            --assignee Wasif0410
+          # Reuse the open issue rather than filing a new one every night.
+          existing=$(gh issue list --state open --label bank --limit 1 --json number --jq '.[0].number')
 
-      - name: Flag an empty bank
-        if: steps.draw.outputs.reason == 'empty'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
+          if [ -n "$existing" ]; then
+            echo "Issue #$existing is already open. Leaving it."
+            exit 0
+          fi
+
+          gh label create bank --description "Bank status" --color ededed --force
           gh issue create \
-            --title "Bank is empty and today has no entry" \
-            --body "Nothing was published today. Add entries to Trajectory-Bank, or write one directly." \
-            --assignee Wasif0410
+            --title "Nothing published today" \
+            --label bank \
+            --assignee Wasif0410 \
+            --body "The publish job ran and had nothing to draw. Either the bank is empty or every category is already filed for today. Top up bank.md in Trajectory-Bank."

@@ -9,8 +9,13 @@
  * script exits non-zero and publishes nothing, so a typo can never push a
  * broken entry to a public repo.
  *
+ * Publishes at most one entry per category, so the workflow can call it once
+ * per category and get a separate commit for each. A category with nothing
+ * banked is skipped rather than forced, which keeps the output uneven the way
+ * real days are.
+ *
  * Usage:
- *   node scripts/publish-from-bank.mjs [--dry-run]
+ *   node scripts/publish-from-bank.mjs --category=personal [--dry-run]
  */
 
 import fs from 'node:fs'
@@ -24,6 +29,17 @@ const LOG_FILE = path.join(BANK_DIR, 'log.md')
 const CATEGORIES = new Set(['professional', 'personal', 'fact'])
 const LOW_BANK_THRESHOLD = 3
 const DRY_RUN = process.argv.includes('--dry-run')
+
+const CATEGORY = (
+  process.argv.find((a) => a.startsWith('--category='))?.split('=')[1] ?? ''
+).trim()
+
+if (!CATEGORIES.has(CATEGORY)) {
+  console.error(
+    `--category is required and must be one of: ${[...CATEGORIES].join(', ')}`
+  )
+  process.exit(2)
+}
 
 /** Today in the log's own timezone, not the runner's UTC. */
 function today() {
@@ -125,6 +141,21 @@ function emit(key, value) {
   }
 }
 
+/** Categories already filed for a given date, read from entry frontmatter. */
+function categoriesPublishedOn(date) {
+  const filed = new Set()
+
+  fs.readdirSync(ENTRIES_DIR)
+    .filter((file) => file.startsWith(`${date}-`))
+    .forEach((file) => {
+      const head = fs.readFileSync(path.join(ENTRIES_DIR, file), 'utf8')
+      const match = head.match(/^category:\s*(\w+)\s*$/m)
+      if (match) filed.add(match[1])
+    })
+
+  return filed
+}
+
 function main() {
   const date = today()
 
@@ -133,22 +164,10 @@ function main() {
     process.exit(1)
   }
 
-  // Writing your own entry always beats drawing from the bank.
-  const alreadyToday = fs
-    .readdirSync(ENTRIES_DIR)
-    .some((file) => file.startsWith(`${date}-`))
-
-  if (alreadyToday) {
-    console.log(`${date} already has an entry. Nothing to do.`)
-    emit('published', 'false')
-    emit('reason', 'already-written')
-    return
-  }
-
   const raw = fs.readFileSync(BANK_FILE, 'utf8')
   const entries = parseBank(raw)
 
-  // Validate everything, not just the one being published, so problems
+  // Validate everything, not just the entry being published, so problems
   // surface before they reach the front of the queue.
   const broken = entries.filter((e) => e.problems.length)
   if (broken.length) {
@@ -167,34 +186,63 @@ function main() {
     return
   }
 
-  const entry = entries[0]
-  const slug = slugify(entry.title)
+  // One entry per category, and only categories the bank actually has.
+  // Writing your own entry beats the bank for that category.
+  const alreadyFiled = categoriesPublishedOn(date)
+  const target = entries.find(
+    (e) => e.category === CATEGORY && !alreadyFiled.has(CATEGORY)
+  )
+
+  if (alreadyFiled.has(CATEGORY)) {
+    console.log(`${date} already has a ${CATEGORY} entry. Skipping.`)
+    emit('published', 'false')
+    emit('reason', 'already-written')
+    emit('remaining', String(entries.length))
+    return
+  }
+
+  if (!target) {
+    console.log(`Nothing banked under ${CATEGORY}. Skipping.`)
+    emit('published', 'false')
+    emit('reason', 'none-in-category')
+    emit('remaining', String(entries.length))
+    return
+  }
+
+  const slug = slugify(target.title)
   const filename = `${date}-${slug}.mdx`
   const remaining = entries.length - 1
 
-  console.log(`Publishing "${entry.title}" as ${filename}`)
+  console.log(`Publishing "${target.title}" as ${filename}`)
   console.log(`${remaining} left in the bank after this.`)
 
   if (DRY_RUN) {
     console.log('\n--- dry run, nothing written ---\n')
-    console.log(frontmatter(entry, date))
+    console.log(frontmatter(target, date))
     emit('published', 'false')
     emit('reason', 'dry-run')
+    emit('remaining', String(entries.length))
     return
   }
 
-  fs.writeFileSync(path.join(ENTRIES_DIR, filename), frontmatter(entry, date), 'utf8')
+  fs.writeFileSync(path.join(ENTRIES_DIR, filename), frontmatter(target, date), 'utf8')
 
   // Splice the entry out byte-for-byte so the rest of the file keeps its
   // exact formatting.
-  fs.writeFileSync(BANK_FILE, raw.slice(0, entry.start) + raw.slice(entry.end), 'utf8')
+  fs.writeFileSync(BANK_FILE, raw.slice(0, target.start) + raw.slice(target.end), 'utf8')
 
-  const row = `| ${date} | ${entry.title.replace(/\|/g, '\\|')} | ${entry.category} | ${slug} |\n`
+  const row = `| ${date} | ${target.title.replace(/\|/g, '\\|')} | ${target.category} | ${slug} |\n`
   fs.appendFileSync(LOG_FILE, row, 'utf8')
+
+  // The workflow commits each entry separately and needs the title for the
+  // commit message. A file avoids quoting the title through the shell.
+  if (process.env.TITLE_FILE) {
+    fs.writeFileSync(process.env.TITLE_FILE, `${target.title}\n`, 'utf8')
+  }
 
   emit('published', 'true')
   emit('slug', slug)
-  emit('title', entry.title)
+  emit('title', target.title)
   emit('filename', filename)
   emit('remaining', String(remaining))
   emit('low', remaining < LOW_BANK_THRESHOLD ? 'true' : 'false')
