@@ -1,0 +1,25 @@
+---
+date: 2026-08-15
+title: "A ticking clock belongs in useSyncExternalStore, not an effect"
+category: professional
+tags: [react]
+sample: true
+---
+
+Wrote a clock the obvious way. `useState` plus a `setInterval` inside
+`useEffect`. Linter flagged it straight away for setting state directly in an
+effect.
+
+Turns out the actual problem is that the time is external state, and React has
+a hook built for exactly that:
+
+```tsx
+const stamp = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+```
+
+`subscribe` kicks off the interval and hands back the teardown. `getSnapshot`
+reads the current value. `getServerSnapshot` returns a placeholder so the
+server render and the first client render agree, which also kills the hydration
+warning you get from rendering something that changes every second.
+
+Took about five minutes to swap over and it reads better than what I had.
