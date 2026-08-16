@@ -53,7 +53,7 @@ jobs:
         id: draw
         env:
           DRY: ${{ inputs.dry_run && '--dry-run' || '' }}
-          TITLE_FILE: ${{ runner.temp }}/publish-title.txt
+          MESSAGE_FILE: ${{ runner.temp }}/commit-message.txt
         run: |
           git config user.name "Wasif Saeed"
           git config user.email "115382944+Wasif0410@users.noreply.github.com"
@@ -70,14 +70,14 @@ jobs:
             # A separate commit per entry, so each lands on its own.
             if [ -n "$(git status --porcelain content/entries)" ]; then
               git add content/entries
-              git commit -q -F "$TITLE_FILE"
+              git commit -q -F "$MESSAGE_FILE"
               git push -q
               published=$((published + 1))
             fi
 
             if [ -n "$(git -C bank status --porcelain)" ]; then
               git -C bank add "$category.md" log.md
-              git -C bank commit -q -m "chore: publish $category entry"
+              git -C bank commit -q -m "chore($category): dequeue published entry"
               git -C bank push -q
             fi
           done

@@ -263,10 +263,16 @@ function main() {
   const row = `| ${date} | ${target.title.replace(/\|/g, '\\|')} | ${target.category} | ${slug} |\n`
   fs.appendFileSync(LOG_FILE, row, 'utf8')
 
-  // The workflow commits each entry separately and needs the title for the
-  // commit message. A file avoids quoting the title through the shell.
-  if (process.env.TITLE_FILE) {
-    fs.writeFileSync(process.env.TITLE_FILE, `${target.title}\n`, 'utf8')
+  // Conventional-commit subject, so content commits read like the rest of the
+  // history instead of a stream of lowercase sentences. The slug keeps each
+  // one distinct and greppable. Written to a file so titles containing quotes
+  // or apostrophes never have to survive shell escaping.
+  if (process.env.MESSAGE_FILE) {
+    fs.writeFileSync(
+      process.env.MESSAGE_FILE,
+      `content(${CATEGORY}): add ${slug}\n`,
+      'utf8'
+    )
   }
 
   emit('published', 'true')
