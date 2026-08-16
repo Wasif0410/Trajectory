@@ -76,7 +76,7 @@ jobs:
             fi
 
             if [ -n "$(git -C bank status --porcelain)" ]; then
-              git -C bank add bank.md log.md
+              git -C bank add "$category.md" log.md
               git -C bank commit -q -m "chore: publish $category entry"
               git -C bank push -q
             fi

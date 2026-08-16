@@ -23,8 +23,10 @@ import path from 'node:path'
 
 const BANK_DIR = process.env.BANK_DIR ?? 'bank'
 const ENTRIES_DIR = path.join(process.cwd(), 'content', 'entries')
-const BANK_FILE = path.join(BANK_DIR, 'bank.md')
 const LOG_FILE = path.join(BANK_DIR, 'log.md')
+
+/** One queue per category, so a typo in one cannot block the other two. */
+const bankFile = (category) => path.join(BANK_DIR, `${category}.md`)
 
 const CATEGORIES = new Set(['professional', 'personal', 'fact'])
 const LOW_BANK_THRESHOLD = 3
@@ -182,41 +184,43 @@ function main() {
     return
   }
 
+  const BANK_FILE = bankFile(CATEGORY)
+
   if (!fs.existsSync(BANK_FILE)) {
-    console.error(`No bank file at ${BANK_FILE}. Is the bank repo checked out?`)
+    console.error(`No queue at ${BANK_FILE}. Is the bank repo checked out?`)
     process.exit(1)
   }
 
   const raw = fs.readFileSync(BANK_FILE, 'utf8')
   const entries = parseBank(raw)
 
-  // Validate everything, not just the entry being published, so problems
-  // surface before they reach the front of the queue.
+  // Validate the whole queue, not just the entry being published, so problems
+  // surface before they reach the front. Scoped to this category's file, so a
+  // typo in one queue cannot block the other two from publishing.
   const broken = entries.filter((e) => e.problems.length)
   if (broken.length) {
-    console.error('The bank has malformed entries. Publishing nothing.\n')
+    console.error(`${CATEGORY}.md has malformed entries. Publishing nothing.\n`)
     broken.forEach((e) => console.error(`  "${e.label}" ${e.problems.join('; ')}`))
     emit('published', 'false')
     emit('reason', 'invalid-bank')
     process.exit(1)
   }
 
-  if (entries.length === 0) {
-    console.log('Bank is empty. Nothing to publish.')
+  // The filename decides the category, so a mismatched category line is a
+  // copy-paste slip worth catching rather than silently honouring.
+  const mismatched = entries.filter((e) => e.category !== CATEGORY)
+  if (mismatched.length) {
+    console.error(`${CATEGORY}.md contains entries labelled another category.\n`)
+    mismatched.forEach((e) =>
+      console.error(`  "${e.label}" says category: ${e.category}`)
+    )
     emit('published', 'false')
-    emit('reason', 'empty')
-    emit('remaining', '0')
-    return
+    emit('reason', 'category-mismatch')
+    process.exit(1)
   }
 
-  // One entry per category, and only categories the bank actually has.
   // Writing your own entry beats the bank for that category.
-  const alreadyFiled = categoriesPublishedOn(date)
-  const target = entries.find(
-    (e) => e.category === CATEGORY && !alreadyFiled.has(CATEGORY)
-  )
-
-  if (alreadyFiled.has(CATEGORY)) {
+  if (categoriesPublishedOn(date).has(CATEGORY)) {
     console.log(`${date} already has a ${CATEGORY} entry. Skipping.`)
     emit('published', 'false')
     emit('reason', 'already-written')
@@ -224,11 +228,13 @@ function main() {
     return
   }
 
+  const target = entries[0]
+
   if (!target) {
-    console.log(`Nothing banked under ${CATEGORY}. Skipping.`)
+    console.log(`${CATEGORY}.md is empty. Nothing to publish.`)
     emit('published', 'false')
-    emit('reason', 'none-in-category')
-    emit('remaining', String(entries.length))
+    emit('reason', 'empty')
+    emit('remaining', '0')
     return
   }
 
