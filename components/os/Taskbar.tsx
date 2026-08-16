@@ -1,7 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { GridIcon, type IconComponent } from './icons'
+import {
+  getMusicPref,
+  getMusicPrefServer,
+  playClick,
+  setMusicPref,
+  setSfxEnabled,
+  startMusic,
+  stopMusic,
+  subscribeMusicPref,
+} from '@/lib/audio'
+import {
+  GridIcon,
+  MusicIcon,
+  SpeakerIcon,
+  SpeakerOffIcon,
+  type IconComponent,
+} from './icons'
 import type { OsData, View, WindowState } from './types'
 
 export interface LauncherItem {
@@ -73,7 +89,37 @@ export function Taskbar({
   open,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sfx, setSfx] = useState(true)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const music = useSyncExternalStore(
+    subscribeMusicPref,
+    getMusicPref,
+    getMusicPrefServer
+  )
+
+  // The preference drives playback, so a stored opt-out is honoured on load
+  // and the toggle only has to record intent.
+  useEffect(() => {
+    if (!music) {
+      stopMusic()
+      return
+    }
+    startMusic()
+    return stopMusic
+  }, [music])
+
+  function toggleSfx() {
+    const next = !sfx
+    setSfx(next)
+    setSfxEnabled(next)
+    if (next) playClick()
+  }
+
+  function toggleMusic() {
+    playClick()
+    setMusicPref(!music)
+  }
 
   useEffect(() => {
     if (!menuOpen) return
@@ -154,7 +200,10 @@ export function Taskbar({
             color: menuOpen ? '#0a0a0c' : 'var(--text)',
             border: `1px solid ${menuOpen ? 'var(--amber)' : 'var(--edge-bright)'}`,
           }}
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={() => {
+            playClick()
+            setMenuOpen((v) => !v)
+          }}
         >
           <GridIcon className="h-3.5 w-3.5" />
           <span className="mono text-[0.6875rem] font-semibold tracking-wider uppercase">
@@ -177,13 +226,44 @@ export function Taskbar({
                   border: `1px solid ${isActive ? 'var(--amber-line)' : 'var(--edge)'}`,
                   opacity: win.minimized ? 0.55 : 1,
                 }}
-                onClick={() => onSelect(win.id)}
+                onClick={() => {
+                  playClick()
+                  onSelect(win.id)
+                }}
               >
                 <Glyph className="h-3.5 w-3.5 shrink-0 text-[var(--amber-deep)]" />
                 <span className="mono truncate text-[0.6875rem]">{win.title}</span>
               </button>
             )
           })}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            aria-label={sfx ? 'Mute sound effects' : 'Unmute sound effects'}
+            aria-pressed={sfx}
+            className="hit rounded p-1.5 hover:bg-white/10"
+            style={{ color: sfx ? 'var(--amber-deep)' : 'var(--text-faint)' }}
+            onClick={toggleSfx}
+          >
+            {sfx ? (
+              <SpeakerIcon className="h-4 w-4" />
+            ) : (
+              <SpeakerOffIcon className="h-4 w-4" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            aria-label={music ? 'Stop ambient music' : 'Play ambient music'}
+            aria-pressed={music}
+            className="hit rounded p-1.5 hover:bg-white/10"
+            style={{ color: music ? 'var(--amber)' : 'var(--text-faint)' }}
+            onClick={toggleMusic}
+          >
+            <MusicIcon className="h-4 w-4" />
+          </button>
         </div>
 
         <Clock />

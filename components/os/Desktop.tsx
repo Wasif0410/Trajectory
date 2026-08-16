@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { playClick, playClose, playOpen } from '@/lib/audio'
 import { CalendarIcon, DocIcon, InfoIcon, LogIcon, RouteIcon } from './icons'
 import { Taskbar, type LauncherItem } from './Taskbar'
 import { Window } from './Window'
@@ -67,6 +68,7 @@ export function Desktop({ data }: { data: OsData }) {
 
   const open = useCallback(
     (view: View) => {
+      playOpen()
       const key = viewKey(view)
 
       setWindows((prev) => {
@@ -111,6 +113,7 @@ export function Desktop({ data }: { data: OsData }) {
   )
 
   const close = useCallback((id: string) => {
+    playClose()
     setWindows((prev) => prev.filter((w) => w.id !== id))
     setActiveId((current) => (current === id ? null : current))
   }, [])
@@ -213,9 +216,14 @@ export function Desktop({ data }: { data: OsData }) {
                     background: isSelected ? 'var(--amber-wash)' : 'transparent',
                     border: `1px solid ${isSelected ? 'var(--amber-line)' : 'transparent'}`,
                   }}
-                  onClick={() =>
-                    compact ? open(item.view) : setSelectedIcon(item.label)
-                  }
+                  onClick={() => {
+                    if (compact) {
+                      open(item.view)
+                    } else {
+                      playClick()
+                      setSelectedIcon(item.label)
+                    }
+                  }}
                   onDoubleClick={() => open(item.view)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') open(item.view)
