@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { playClick } from '@/lib/audio'
 import type { IconComponent } from './icons'
 
 export interface FileItem {
@@ -50,7 +51,14 @@ export function FileGrid({
                   background: isSelected ? 'var(--amber-wash)' : 'transparent',
                   border: `1px solid ${isSelected ? 'var(--amber-line)' : 'transparent'}`,
                 }}
-                onClick={() => (compact ? item.onOpen() : setSelected(item.key))}
+                onClick={() => {
+                  if (compact) {
+                    item.onOpen()
+                  } else {
+                    playClick()
+                    setSelected(item.key)
+                  }
+                }}
                 onDoubleClick={item.onOpen}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') item.onOpen()
