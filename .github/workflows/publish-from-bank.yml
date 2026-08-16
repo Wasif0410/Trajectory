@@ -1,0 +1,86 @@
+name: Publish from bank
+
+# Draws the top entry from the private bank if the day has nothing in it yet.
+# Writing your own entry always wins: the script exits early when today
+# already has a file.
+#
+# 02:30 UTC is 22:30 in Toronto during EDT and 21:30 during EST. Late enough
+# that the day is genuinely missed, early enough to still land on today.
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Parse and validate the bank without publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out site
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BANK_TOKEN }}
+
+      - name: Check out bank
+        uses: actions/checkout@v4
+        with:
+          repository: Wasif0410/Trajectory-Bank
+          token: ${{ secrets.BANK_TOKEN }}
+          path: bank
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Draw an entry
+        id: draw
+        run: node scripts/publish-from-bank.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Commit the entry
+        if: steps.draw.outputs.published == 'true'
+        run: |
+          git config user.name "Wasif Saeed"
+          git config user.email "115382944+Wasif0410@users.noreply.github.com"
+          git add content/entries
+          git commit -m "${{ steps.draw.outputs.title }}"
+          git push
+
+      - name: Update the bank
+        if: steps.draw.outputs.published == 'true'
+        working-directory: bank
+        run: |
+          git config user.name "Wasif Saeed"
+          git config user.email "115382944+Wasif0410@users.noreply.github.com"
+          git add bank.md log.md
+          git commit -m "chore: publish ${{ steps.draw.outputs.slug }}"
+          git push
+
+      - name: Flag a low bank
+        if: steps.draw.outputs.low == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Bank is running low (${{ steps.draw.outputs.remaining }} left)" \
+            --body "The publish job just drew from the bank and there are ${{ steps.draw.outputs.remaining }} entries left. Top it up in Trajectory-Bank when you get a chance." \
+            --assignee Wasif0410
+
+      - name: Flag an empty bank
+        if: steps.draw.outputs.reason == 'empty'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Bank is empty and today has no entry" \
+            --body "Nothing was published today. Add entries to Trajectory-Bank, or write one directly." \
+            --assignee Wasif0410
