@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# trajectory
 
-## Getting Started
+A desktop environment for a daily learning log. Not a portfolio.
 
-First, run the development server:
+Every day gets filed into one of three folders: **Professional**, **Personal**,
+and **Cool Facts**. The site renders those files as a windowed OS you can
+browse, drag around, and stack.
+
+Live entries live in `content/entries/` as MDX, one file per note. Everything
+the site displays about totals, days, and streaks is computed from those files
+at build time, so the numbers cannot drift from what is actually written.
+
+## Stack
+
+- **Next.js 16** (App Router) on **React 19**
+- **MDX** compiled server-side, handed to the client desktop as rendered nodes
+- **Tailwind v4** for layout, hand-rolled CSS for the window chrome
+- **Web Audio API** for the interface sounds and ambient bed (no audio files)
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on :3000 |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run sample` | Write the starter entries |
+| `npm run sample:clear` | Remove them again |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Adding an entry
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Drop a file in `content/entries/` named `YYYY-MM-DD-some-slug.mdx`:
 
-## Learn More
+```mdx
+---
+date: 2026-08-15
+title: "What you worked out"
+category: professional
+tags: [react]
+---
 
-To learn more about Next.js, take a look at the following resources:
+Body goes here.
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`category` must be `professional`, `personal`, or `fact`. A malformed entry
+fails the build rather than disappearing quietly from its folder.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Layout
 
-## Deploy on Vercel
+```
+app/              routes and global styling
+components/os/    the desktop: windows, taskbar, icons, views
+lib/content.ts    types and pure helpers (safe for the client bundle)
+lib/entries.ts    filesystem loading (server only)
+lib/audio.ts      synthesised sound
+content/          entries, pages, and the context file
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`lib/content.ts` and `lib/entries.ts` are split deliberately. Anything reachable
+from a client component gets bundled for the browser, and `entries.ts` imports
+`node:fs`, so the client-facing helpers have to live apart from it.
