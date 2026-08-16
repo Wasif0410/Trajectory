@@ -30,11 +30,13 @@ const CATEGORIES = new Set(['professional', 'personal', 'fact'])
 const LOW_BANK_THRESHOLD = 3
 const DRY_RUN = process.argv.includes('--dry-run')
 
+const REPORT = process.argv.includes('--report')
+
 const CATEGORY = (
   process.argv.find((a) => a.startsWith('--category='))?.split('=')[1] ?? ''
 ).trim()
 
-if (!CATEGORIES.has(CATEGORY)) {
+if (!REPORT && !CATEGORIES.has(CATEGORY)) {
   console.error(
     `--category is required and must be one of: ${[...CATEGORIES].join(', ')}`
   )
@@ -156,8 +158,29 @@ function categoriesPublishedOn(date) {
   return filed
 }
 
+/**
+ * Reports which categories are still missing for today. The day is only
+ * complete when all three are filed, whether by hand or from the bank.
+ */
+function report() {
+  const date = today()
+  const filed = categoriesPublishedOn(date)
+  const missing = [...CATEGORIES].filter((c) => !filed.has(c))
+
+  console.log(`${date}: ${filed.size} of 3 categories filed.`)
+  if (missing.length) console.log(`Missing: ${missing.join(', ')}`)
+
+  emit('missing', missing.join(','))
+  emit('complete', missing.length === 0 ? 'true' : 'false')
+}
+
 function main() {
   const date = today()
+
+  if (REPORT) {
+    report()
+    return
+  }
 
   if (!fs.existsSync(BANK_FILE)) {
     console.error(`No bank file at ${BANK_FILE}. Is the bank repo checked out?`)

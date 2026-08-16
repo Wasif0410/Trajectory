@@ -1,10 +1,15 @@
 name: Publish from bank
 
-# Draws up to one entry per category from the private bank, committing each
-# separately. A category with nothing banked is skipped, so a day produces
-# between zero and three commits depending on what is actually in the queue.
+# Every day should end with one professional, one personal and one cool fact.
+# This draws one from each category in the private bank, committing each
+# separately.
 #
-# Writing your own entry wins: a category already filed for today is skipped.
+# Writing your own entry wins: a category already filed for today is left
+# alone and the bank fills the rest.
+#
+# If the day cannot be completed, an issue is raised naming the categories
+# that came up short. An incomplete day is a problem to fix, not something to
+# absorb quietly.
 #
 # 02:30 UTC is 22:30 in Toronto during EDT and 21:30 during EST. Late enough
 # that the day is genuinely missed, early enough to still land on today.
@@ -80,23 +85,32 @@ jobs:
           echo "published=$published" >> "$GITHUB_OUTPUT"
           echo "Published $published entries."
 
+      - name: Check the day is complete
+        id: check
+        if: ${{ !inputs.dry_run }}
+        run: node scripts/publish-from-bank.mjs --report
+
       # Only on real runs. A dry run should leave no trace, including issues.
-      - name: Flag an empty or exhausted bank
-        if: steps.draw.outputs.published == '0' && !inputs.dry_run
+      - name: Flag an incomplete day
+        if: steps.check.outputs.complete == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISSING: ${{ steps.check.outputs.missing }}
         run: |
           # Reuse the open issue rather than filing a new one every night.
           existing=$(gh issue list --state open --label bank --limit 1 --json number --jq '.[0].number')
 
           if [ -n "$existing" ]; then
-            echo "Issue #$existing is already open. Leaving it."
+            gh issue comment "$existing" --body "Still short today. Missing: $MISSING"
+            echo "Commented on existing issue #$existing."
             exit 0
           fi
 
           gh label create bank --description "Bank status" --color ededed --force
           gh issue create \
-            --title "Nothing published today" \
+            --title "Today is missing: $MISSING" \
             --label bank \
             --assignee Wasif0410 \
-            --body "The publish job ran and had nothing to draw. Either the bank is empty or every category is already filed for today. Top up bank.md in Trajectory-Bank."
+            --body "Every day should have one professional, one personal and one cool fact. Today came up short on: **$MISSING**.
+
+          The bank had nothing queued under those categories. Top up bank.md in Trajectory-Bank, or write them directly."
