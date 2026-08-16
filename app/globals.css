@@ -1,26 +1,319 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------
+   trajectory OS — "Carbon + Amber"
+   A desktop environment for a learning log. Chrome is machined
+   charcoal; amber is the only light source and is spent on state,
+   never on decoration.
+   --------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --desk: #0a0a0c;
+  --desk-glow: #16130d;
+
+  --chrome: #17181c;
+  --chrome-raised: #1e2025;
+  --chrome-sunken: #101115;
+  --edge: #2b2d34;
+  --edge-bright: #3a3d46;
+
+  --text: #e9e7e2;
+  --text-dim: #9b9890;
+  --text-faint: #6a6862;
+
+  --amber: #ffb454;
+  --amber-deep: #d98a2b;
+  --amber-wash: rgba(255, 180, 84, 0.12);
+  --amber-line: rgba(255, 180, 84, 0.35);
+
+  --shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.75);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
+  overscroll-behavior: none;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background:
+    radial-gradient(90% 60% at 50% -10%, #14110b 0%, transparent 55%),
+    #060607;
+  color: var(--text);
+  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- the machine ----------------------------------------------- */
+/* The desktop is a screen sitting on a page, not the page itself.
+   Bezel, inset screen, nothing else competing with it. */
+
+.page-shell {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.5rem, 2vw, 1.5rem);
+}
+
+/* Bounded by height as well as width. Without the third term a 16:10 box
+   sized purely by width runs off the bottom of a short viewport and the page
+   starts scrolling, which puts the taskbar below the fold. */
+.monitor {
+  width: min(100%, 1280px, calc((100dvh - 4.5rem) * 1.6));
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #212227, #141519);
+  border: 1px solid var(--edge-bright);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 40px 80px -30px rgba(0, 0, 0, 0.9);
+}
+
+.monitor-screen {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid #000;
+  box-shadow: inset 0 0 0 1px rgba(255, 180, 84, 0.07);
+}
+
+.monitor-screen > * {
+  position: absolute;
+  inset: 0;
+}
+
+/* Below the tablet breakpoint a 16:10 box wastes most of a phone screen,
+   so the frame gives way to something closer to full height. */
+@media (max-width: 767px) {
+  .page-shell {
+    padding: 0;
+  }
+
+  .monitor {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .monitor-screen {
+    aspect-ratio: auto;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+/* --- type roles ------------------------------------------------ */
+
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* --- window chrome --------------------------------------------- */
+/* One inset hairline on top gives the panel a machined edge without
+   the chunky 3D bevel of a nostalgia skin. */
+
+.panel {
+  background: var(--chrome);
+  border: 1px solid var(--edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    var(--shadow);
+}
+
+.titlebar {
+  background: linear-gradient(180deg, var(--chrome-raised), var(--chrome));
+  border-bottom: 1px solid var(--edge);
+}
+
+.titlebar-active {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 180, 84, 0.14),
+    rgba(255, 180, 84, 0.03)
+  );
+  border-bottom: 1px solid var(--amber-line);
+}
+
+.sunken {
+  background: var(--chrome-sunken);
+  border: 1px solid var(--edge);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* --- desktop --------------------------------------------------- */
+
+.desktop-surface {
+  background:
+    radial-gradient(
+      120% 80% at 50% 0%,
+      var(--desk-glow) 0%,
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    var(--desk);
+}
+
+/* --- scrollbars ------------------------------------------------ */
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge-bright) transparent;
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll-thin::-webkit-scrollbar-track {
+  background: var(--chrome-sunken);
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--edge-bright);
+  border: 2px solid var(--chrome-sunken);
+  border-radius: 6px;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--amber-deep);
+}
+
+/* --- prose inside windows -------------------------------------- */
+
+.prose-os {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.prose-os > * + * {
+  margin-top: 1.05em;
+}
+
+.prose-os h2,
+.prose-os h3 {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 600;
+  color: var(--amber);
+  letter-spacing: -0.01em;
+  margin-top: 1.9em;
+}
+
+.prose-os h2 { font-size: 1.0625rem; }
+.prose-os h3 { font-size: 0.9375rem; }
+
+.prose-os a {
+  color: var(--amber);
+  text-decoration-line: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.prose-os code {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--amber-wash);
+  color: var(--amber);
+  padding: 0.12em 0.38em;
+  border-radius: 3px;
+}
+
+.prose-os pre {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  background: var(--chrome-sunken);
+  border: 1px solid var(--edge);
+  border-left: 2px solid var(--amber-deep);
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.prose-os pre code {
+  background: none;
+  color: var(--text);
+  padding: 0;
+  font-size: inherit;
+}
+
+.prose-os ul { list-style: disc; padding-left: 1.25em; }
+.prose-os ol { list-style: decimal; padding-left: 1.25em; }
+.prose-os li + li { margin-top: 0.35em; }
+
+.prose-os blockquote {
+  border-left: 2px solid var(--amber-deep);
+  padding-left: 0.9rem;
+  color: var(--text-dim);
+}
+
+.prose-os strong { color: var(--text); font-weight: 600; }
+
+/* --- interaction states ---------------------------------------- */
+
+.hit {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Windows animate open; nothing else moves unless the user moves it. */
+@keyframes window-open {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.window-enter {
+  animation: window-open 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dragging a window shouldn't select the text under the cursor. */
+.dragging,
+.dragging * {
+  user-select: none !important;
+  cursor: grabbing !important;
 }
