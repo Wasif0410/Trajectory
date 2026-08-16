@@ -33,12 +33,13 @@ const LOW_BANK_THRESHOLD = 3
 const DRY_RUN = process.argv.includes('--dry-run')
 
 const REPORT = process.argv.includes('--report')
+const PR_TITLE = process.argv.includes('--pr-title')
 
 const CATEGORY = (
   process.argv.find((a) => a.startsWith('--category='))?.split('=')[1] ?? ''
 ).trim()
 
-if (!REPORT && !CATEGORIES.has(CATEGORY)) {
+if (!REPORT && !PR_TITLE && !CATEGORIES.has(CATEGORY)) {
   console.error(
     `--category is required and must be one of: ${[...CATEGORIES].join(', ')}`
   )
@@ -143,9 +144,21 @@ const MESSAGE_TEMPLATES = [
   (category, date) => `content(${category}): new entry for ${date}`,
 ]
 
+/** Same idea, phrased for a pull request covering the whole day. */
+const PR_TITLE_TEMPLATES = [
+  (date) => `content: publish entries for ${date}`,
+  () => `content: update site content`,
+  () => `content: expand the learning log`,
+  (date) => `content: add ${date} to the archive`,
+  (date) => `content: new entries for ${date}`,
+]
+
+function pickFrom(templates, ...args) {
+  return templates[Math.floor(Math.random() * templates.length)](...args)
+}
+
 function commitMessage(date) {
-  const pick = MESSAGE_TEMPLATES[Math.floor(Math.random() * MESSAGE_TEMPLATES.length)]
-  return pick(CATEGORY, date)
+  return pickFrom(MESSAGE_TEMPLATES, CATEGORY, date)
 }
 
 function frontmatter(entry, date) {
@@ -199,6 +212,11 @@ function report() {
 
 function main() {
   const date = today()
+
+  if (PR_TITLE) {
+    console.log(pickFrom(PR_TITLE_TEMPLATES, date))
+    return
+  }
 
   if (REPORT) {
     report()

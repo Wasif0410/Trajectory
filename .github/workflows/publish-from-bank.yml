@@ -27,6 +27,7 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   publish:
@@ -60,6 +61,14 @@ jobs:
           git -C bank config user.name "Wasif Saeed"
           git -C bank config user.email "115382944+Wasif0410@users.noreply.github.com"
 
+          # The day's entries go through a branch and a pull request, matching
+          # what the /trajectory skill does by hand. If one path used a branch
+          # and the other committed straight to main, the history would show at
+          # a glance which days were written and which were drawn.
+          today=$(TZ=America/Toronto date +%F)
+          branch="log/$today"
+          git switch -c "$branch"
+
           published=0
 
           for category in professional personal fact; do
@@ -71,10 +80,11 @@ jobs:
             if [ -n "$(git status --porcelain content/entries)" ]; then
               git add content/entries
               git commit -q -F "$MESSAGE_FILE"
-              git push -q
               published=$((published + 1))
             fi
 
+            # The bank is private and only ever read by one person, so its
+            # commits go straight to main.
             if [ -n "$(git -C bank status --porcelain)" ]; then
               git -C bank add "$category.md" log.md
               git -C bank commit -q -m "chore($category): dequeue published entry"
@@ -83,7 +93,36 @@ jobs:
           done
 
           echo "published=$published" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "Published $published entries."
+
+      - name: Open and merge the pull request
+        if: steps.draw.outputs.published != '0'
+        env:
+          GH_TOKEN: ${{ secrets.BANK_TOKEN }}
+          BRANCH: ${{ steps.draw.outputs.branch }}
+          COUNT: ${{ steps.draw.outputs.published }}
+        run: |
+          git push -q -u origin "$BRANCH"
+
+          title=$(node scripts/publish-from-bank.mjs --pr-title)
+          gh pr create --base main --head "$BRANCH" \
+            --title "$title" \
+            --body "$COUNT $([ "$COUNT" = "1" ] && echo entry || echo entries) for today."
+
+          # Wait for CI rather than merging blind. Merging a red build would
+          # deploy a broken site. The PR is opened with the PAT, which is what
+          # lets CI trigger on it at all: a PR opened with the built-in
+          # GITHUB_TOKEN deliberately does not start other workflows.
+          #
+          # The pause is for a race. Checks take a moment to register, and
+          # `gh pr checks` errors out rather than waiting if none exist yet.
+          sleep 15
+          gh pr checks "$BRANCH" --watch --interval 10
+
+          # --merge, not --squash: squashing would collapse the day's entries
+          # into a single commit and lose the one-commit-per-entry shape.
+          gh pr merge "$BRANCH" --merge --delete-branch
 
       - name: Check the day is complete
         id: check
