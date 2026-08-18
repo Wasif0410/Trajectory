@@ -83,12 +83,13 @@ jobs:
               published=$((published + 1))
             fi
 
-            # The bank is private and only ever read by one person, so its
-            # commits go straight to main.
+            # Commit the dequeue locally but do NOT push it. Pushing here would
+            # delete the entry from the bank before the site has it, and every
+            # step that can fail comes after this point. If one does, the runner
+            # is destroyed and the bank must still be intact.
             if [ -n "$(git -C bank status --porcelain)" ]; then
               git -C bank add "$category.md" log.md
               git -C bank commit -q -m "chore($category): dequeue published entry"
-              git -C bank push -q
             fi
           done
 
@@ -123,6 +124,12 @@ jobs:
           # --merge, not --squash: squashing would collapse the day's entries
           # into a single commit and lose the one-commit-per-entry shape.
           gh pr merge "$BRANCH" --merge --delete-branch
+
+      # Only now is the entry safely on the site. Any failure above skips this
+      # step by default, leaving the bank exactly as it was so tomorrow retries.
+      - name: Dequeue from the bank
+        if: steps.draw.outputs.published != '0'
+        run: git -C bank push -q
 
       - name: Check the day is complete
         id: check
