@@ -1,0 +1,88 @@
+name: Nightly reminder
+
+# A nudge at 8pm if the day is still short, two and a half hours before the
+# bank fills the gaps at 22:30. Enough time to write them yourself, which is
+# the point — the bank is the fallback, not the plan.
+#
+# 00:00 UTC is 20:00 in Toronto during EDT and 19:00 during EST.
+#
+# This runs on GITHUB_TOKEN rather than a PAT. Opening an issue needs only
+# issues:write, which the built-in token has by default, so this workflow
+# cannot fail the way publish-from-bank did when its PAT lacked a scope.
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check which categories are filed
+        id: check
+        run: node scripts/publish-from-bank.mjs --report
+
+      - name: Nudge, or clear the nudge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMPLETE: ${{ steps.check.outputs.complete }}
+          MISSING: ${{ steps.check.outputs.missing }}
+        run: |
+          set -euo pipefail
+
+          today=$(TZ=America/Toronto date +%F)
+          title="Log today's entry — $today"
+
+          # Listing by a label that does not exist yet is an error, so ensure it.
+          gh label create reminder --description "Daily nudge" --color fbca04 --force
+
+          # One line per open nudge: "<number> <title>". Parsed with grep and
+          # awk rather than jq, so the logic is testable in a plain shell.
+          open_list=$(gh issue list --state open --label reminder \
+            --json number,title --template '{{range .}}{{.number}} {{.title}}{{"\n"}}{{end}}')
+
+          # grep exits 1 on no match, which pipefail would turn into a failed
+          # run on the ordinary "nothing open" day. Hence the || true.
+          todays=$(echo "$open_list" | grep -F "$today" | awk '{print $1}' | head -1 || true)
+          stale=$(echo "$open_list" | grep -v -F "$today" | awk 'NF {print $1}' || true)
+
+          # Yesterday's nudges are answered by now, one way or another. A pile
+          # of them is noise, and noise is how a real one gets ignored.
+          for n in $stale; do
+            gh issue close "$n" --comment "Superseded."
+          done
+
+          if [ "$COMPLETE" = "true" ]; then
+            if [ -n "$todays" ]; then
+              gh issue close "$todays" --comment "All three filed. Nice."
+            fi
+            echo "$today is complete."
+            exit 0
+          fi
+
+          if [ -n "$todays" ]; then
+            echo "Already nudged in #$todays."
+            exit 0
+          fi
+
+          # Assigned, because GitHub emails on assignment. An unassigned issue
+          # in a repo you own is a notification you will not receive.
+          gh issue create \
+            --title "$title" \
+            --label reminder \
+            --assignee Wasif0410 \
+            --body "Still missing for $today: **$MISSING**.
+
+          Run \`/trajectory\` to write them yourself. Anything still missing at 22:30 gets drawn from the bank instead."
