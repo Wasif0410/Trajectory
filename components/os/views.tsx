@@ -142,7 +142,7 @@ export function CategoryDocument({
                 style={{ borderTop: '1px dashed var(--edge)' }}
               />
             )}
-            <Article entry={entry} showTitle={entries.length > 1} />
+            <Article entry={entry} showTitle />
           </div>
         ))}
       </div>
