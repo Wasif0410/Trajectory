@@ -61,17 +61,11 @@ export function DayView({
   )
 }
 
-/** The writing itself, shared by the day-category document and single entries. */
-function Article({ entry, showTitle }: { entry: RenderedEntry; showTitle: boolean }) {
+/** The writing itself — the body and its tags. The heading lives in EntryView. */
+function Article({ entry }: { entry: RenderedEntry }) {
   return (
     <article>
-      {showTitle && (
-        <h2 className="mono text-[0.9375rem] leading-snug font-semibold text-[var(--text)]">
-          {entry.title}
-        </h2>
-      )}
-
-      <div className={`prose-os ${showTitle ? 'mt-3' : ''}`}>{entry.content}</div>
+      <div className="prose-os">{entry.content}</div>
 
       {entry.tags.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-1.5">
@@ -95,9 +89,13 @@ function Article({ entry, showTitle }: { entry: RenderedEntry; showTitle: boolea
 }
 
 /**
- * One category on one day, opened as a document rather than a folder. If the
- * day has several notes filed under the category they stack in the same file,
- * separated by a rule — the way a page of notes actually reads.
+ * One category on one day. Each note renders as the same document the Daily
+ * Log opens — same header, same heading, same body — because it is literally
+ * the same component. Copying the markup here is how the two drifted apart in
+ * the first place.
+ *
+ * If the day has several notes filed under the category they stack, separated
+ * by a rule, the way a page of notes actually reads.
  */
 export function CategoryDocument({
   date,
@@ -111,7 +109,6 @@ export function CategoryDocument({
   const entries = data.entries.filter(
     (e) => e.date === date && e.category === category
   )
-  const Glyph = CATEGORY_ICON[category]
 
   if (entries.length === 0) {
     return (
@@ -122,30 +119,15 @@ export function CategoryDocument({
   }
 
   return (
-    <div className="px-5 py-4">
-      <header className="pb-4" style={{ borderBottom: '1px solid var(--edge)' }}>
-        <div className="flex items-center gap-2">
-          <Glyph className="h-3.5 w-3.5" style={{ color: 'var(--amber)' }} />
-          <span className="chip">{CATEGORY_LABEL[category]}</span>
+    <div>
+      {entries.map((entry, i) => (
+        <div key={entry.slug}>
+          {i > 0 && (
+            <hr className="border-0" style={{ borderTop: '1px dashed var(--edge)' }} />
+          )}
+          <EntryView entry={entry} />
         </div>
-        <p className="mono mt-1.5 text-[0.9375rem] text-[var(--text)]">
-          {formatDate(date)}
-        </p>
-      </header>
-
-      <div className="mt-5 space-y-7">
-        {entries.map((entry, i) => (
-          <div key={entry.slug}>
-            {i > 0 && (
-              <hr
-                className="mb-7 border-0"
-                style={{ borderTop: '1px dashed var(--edge)' }}
-              />
-            )}
-            <Article entry={entry} showTitle />
-          </div>
-        ))}
-      </div>
+      ))}
     </div>
   )
 }
@@ -169,7 +151,7 @@ export function EntryView({ entry }: { entry: RenderedEntry }) {
       </header>
 
       <div className="mt-4">
-        <Article entry={entry} showTitle={false} />
+        <Article entry={entry} />
       </div>
     </div>
   )
