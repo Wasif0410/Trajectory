@@ -15,7 +15,7 @@
  * real days are.
  *
  * Usage:
- *   node scripts/publish-from-bank.mjs --category=personal [--dry-run]
+ *   node scripts/publish-from-bank.mjs --category=personal [--date=YYYY-MM-DD] [--dry-run]
  */
 
 import fs from 'node:fs'
@@ -46,6 +46,15 @@ if (!REPORT && !PR_TITLE && !CATEGORIES.has(CATEGORY)) {
   process.exit(2)
 }
 
+const DATE_ARG = (
+  process.argv.find((a) => a.startsWith('--date='))?.split('=')[1] ?? ''
+).trim()
+
+if (DATE_ARG && !/^\d{4}-\d{2}-\d{2}$/.test(DATE_ARG)) {
+  console.error(`--date must be YYYY-MM-DD, got "${DATE_ARG}"`)
+  process.exit(2)
+}
+
 /** Today in the log's own timezone, not the runner's UTC. */
 function today() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -54,6 +63,21 @@ function today() {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
+}
+
+/**
+ * The day this run is *about*, which is not the day it happens to run.
+ *
+ * GitHub delivers scheduled triggers late — usually by under an hour, but
+ * observed at nine to twelve hours during an incident. A job that asks the
+ * clock what day it is will therefore publish for the wrong date whenever the
+ * delay crosses midnight, and it does so silently: the run succeeds, it is
+ * just about a different day. The workflow passes the intended date in, so
+ * lateness stops changing the meaning of the run. The clock is only a
+ * fallback, for running this by hand.
+ */
+function targetDate() {
+  return DATE_ARG || today()
 }
 
 function slugify(title) {
@@ -199,7 +223,7 @@ function categoriesPublishedOn(date) {
  * complete when all three are filed, whether by hand or from the bank.
  */
 function report() {
-  const date = today()
+  const date = targetDate()
   const filed = categoriesPublishedOn(date)
   const missing = [...CATEGORIES].filter((c) => !filed.has(c))
 
@@ -211,7 +235,7 @@ function report() {
 }
 
 function main() {
-  const date = today()
+  const date = targetDate()
 
   if (PR_TITLE) {
     console.log(pickFrom(PR_TITLE_TEMPLATES, date))

@@ -1,8 +1,8 @@
 name: Nightly reminder
 
-# A nudge at 8pm if the day is still short, two and a half hours before the
-# bank fills the gaps at 22:30. Enough time to write them yourself, which is
-# the point — the bank is the fallback, not the plan.
+# A nudge at 8pm if the day is still short. The bank no longer draws until
+# 01:30, so the whole evening is yours to write in — which is the point. The
+# bank is the fallback, not the plan.
 #
 # 00:00 UTC is 20:00 in Toronto during EDT and 19:00 during EST.
 #
@@ -24,17 +24,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # A nudge is only worth anything while there is still an evening left to
+      # act on it. GitHub has delivered this trigger between one and nine hours
+      # late, and an issue opened at 4am is not a reminder — it is a note about
+      # a day already being decided without you. Worse, a run that drifts past
+      # midnight resolves "today" to yesterday, finds it complete and closes
+      # the nudge, so the day it was meant to cover never gets one at all.
+      #
+      # A late run is not salvageable, only skippable. This is the one part of
+      # the system a correct date cannot fix: the value here is the timing.
+      - name: Only nudge while the evening is still usable
+        id: window
+        run: |
+          hour=$(TZ=America/Toronto date +%-H)
+
+          if [ "$hour" -ge 19 ] && [ "$hour" -le 22 ]; then
+            echo "Toronto hour is $hour. In the window."
+            echo "send=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Toronto hour is $hour, outside 19:00-22:59. Skipping the nudge."
+            echo "send=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.window.outputs.send == 'true'
 
       - uses: actions/setup-node@v4
+        if: steps.window.outputs.send == 'true'
         with:
           node-version: 22
 
       - name: Check which categories are filed
         id: check
+        if: steps.window.outputs.send == 'true'
         run: node scripts/publish-from-bank.mjs --report
 
       - name: Nudge, or clear the nudge
+        if: steps.window.outputs.send == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMPLETE: ${{ steps.check.outputs.complete }}
