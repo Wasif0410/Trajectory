@@ -11,12 +11,23 @@ name: Publish from bank
 # that came up short. An incomplete day is a problem to fix, not something to
 # absorb quietly.
 #
-# 02:30 UTC is 22:30 in Toronto during EDT and 21:30 during EST. Late enough
-# that the day is genuinely missed, early enough to still land on today.
+# 05:30 UTC is 01:30 in Toronto during EDT and 00:30 during EST. After
+# midnight on purpose: this run is about the day that just ended, not the one
+# it wakes up in.
+#
+# The old 22:30 run read the clock to decide which day it was publishing for,
+# leaving it only 90 minutes of slack before midnight. GitHub delivers
+# scheduled triggers late — usually under an hour, but nine to twelve hours
+# during the incident of 2026-08-27 — and once the delay crossed midnight the
+# run published for the following day instead. It did not fail; it succeeded
+# at the wrong thing, and 2026-08-26 was left permanently empty.
+#
+# Naming the target date explicitly turns 90 minutes of slack into about 22
+# hours, and the two-day repair pass below covers anything worse.
 
 on:
   schedule:
-    - cron: '30 2 * * *'
+    - cron: '30 5 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -65,36 +76,46 @@ jobs:
           # what the /trajectory skill does by hand. If one path used a branch
           # and the other committed straight to main, the history would show at
           # a glance which days were written and which were drawn.
-          today=$(TZ=America/Toronto date +%F)
-          branch="log/$today"
+          # The day this run is about, not the day it happens to wake up on.
+          target=$(TZ=America/Toronto date -d yesterday +%F)
+          prev=$(TZ=America/Toronto date -d '2 days ago' +%F)
+
+          branch="log/$target"
           git switch -c "$branch"
 
           published=0
 
-          for category in professional personal fact; do
-            echo "::group::$category"
-            node scripts/publish-from-bank.mjs --category="$category" $DRY
-            echo "::endgroup::"
+          # Oldest first, so a night the scheduler dropped outright is repaired
+          # on the next run instead of becoming a permanent gap. A day that is
+          # already complete is skipped, so on an ordinary night this extra
+          # pass does nothing at all.
+          for date in "$prev" "$target"; do
+            for category in professional personal fact; do
+              echo "::group::$date $category"
+              node scripts/publish-from-bank.mjs --category="$category" --date="$date" $DRY
+              echo "::endgroup::"
 
-            # A separate commit per entry, so each lands on its own.
-            if [ -n "$(git status --porcelain content/entries)" ]; then
-              git add content/entries
-              git commit -q -F "$MESSAGE_FILE"
-              published=$((published + 1))
-            fi
+              # A separate commit per entry, so each lands on its own.
+              if [ -n "$(git status --porcelain content/entries)" ]; then
+                git add content/entries
+                git commit -q -F "$MESSAGE_FILE"
+                published=$((published + 1))
+              fi
 
-            # Commit the dequeue locally but do NOT push it. Pushing here would
-            # delete the entry from the bank before the site has it, and every
-            # step that can fail comes after this point. If one does, the runner
-            # is destroyed and the bank must still be intact.
-            if [ -n "$(git -C bank status --porcelain)" ]; then
-              git -C bank add "$category.md" log.md
-              git -C bank commit -q -m "chore($category): dequeue published entry"
-            fi
+              # Commit the dequeue locally but do NOT push it. Pushing here
+              # would delete the entry from the bank before the site has it,
+              # and every step that can fail comes after this point. If one
+              # does, the runner is destroyed and the bank must still be intact.
+              if [ -n "$(git -C bank status --porcelain)" ]; then
+                git -C bank add "$category.md" log.md
+                git -C bank commit -q -m "chore($category): dequeue published entry"
+              fi
+            done
           done
 
           echo "published=$published" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "date=$target" >> "$GITHUB_OUTPUT"
           echo "Published $published entries."
 
       - name: Open and merge the pull request
@@ -103,13 +124,14 @@ jobs:
           GH_TOKEN: ${{ secrets.BANK_TOKEN }}
           BRANCH: ${{ steps.draw.outputs.branch }}
           COUNT: ${{ steps.draw.outputs.published }}
+          DATE: ${{ steps.draw.outputs.date }}
         run: |
           git push -q -u origin "$BRANCH"
 
-          title=$(node scripts/publish-from-bank.mjs --pr-title)
+          title=$(node scripts/publish-from-bank.mjs --pr-title --date="$DATE")
           gh pr create --base main --head "$BRANCH" \
             --title "$title" \
-            --body "$COUNT $([ "$COUNT" = "1" ] && echo entry || echo entries) for today."
+            --body "$COUNT $([ "$COUNT" = "1" ] && echo entry || echo entries) for $DATE."
 
           # Wait for CI rather than merging blind. Merging a red build would
           # deploy a broken site. The PR is opened with the PAT, which is what
@@ -134,7 +156,7 @@ jobs:
       - name: Check the day is complete
         id: check
         if: ${{ !inputs.dry_run }}
-        run: node scripts/publish-from-bank.mjs --report
+        run: node scripts/publish-from-bank.mjs --report --date="${{ steps.draw.outputs.date }}"
 
       # Only on real runs. A dry run should leave no trace, including issues.
       - name: Flag an incomplete day
