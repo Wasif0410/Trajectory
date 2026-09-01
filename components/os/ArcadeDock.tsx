@@ -111,23 +111,31 @@ export function ArcadeDock() {
 
   return (
     <section
-      // Hidden on compact. A permanent dock on a phone would take most of the
-      // screen away from the thing people actually came to read.
-      className="hidden shrink-0 md:block"
-      style={{ background: 'var(--chrome)', borderTop: '1px solid var(--edge)' }}
+      // Floats over the desktop at bottom right rather than sitting in the
+      // layout, so an open panel never pushes the icons around. Below the
+      // start menu's z-index, which should still win when both are open.
+      //
+      // Hidden on compact, where a floating panel would cover most of the
+      // thing people actually came to read.
+      className="panel window-enter absolute right-3 bottom-3 hidden overflow-hidden rounded-[6px] md:block"
+      style={{ zIndex: 9_000 }}
       aria-label="Arcade"
     >
       <button
         type="button"
         aria-expanded={open}
-        className="hit flex w-full items-center gap-2 px-3 py-1.5 text-left"
+        className="hit flex w-full items-center gap-2 px-3 py-2 text-left"
+        style={{
+          background: 'var(--chrome-raised)',
+          borderBottom: open ? '1px solid var(--edge)' : 'none',
+        }}
         onClick={toggle}
       >
         <GamepadIcon className="h-4 w-4 shrink-0 text-[var(--amber-deep)]" />
         <span className="mono text-[0.6875rem] font-semibold tracking-wider uppercase text-[var(--amber)]">
           Arcade
         </span>
-        <span className="chip">Retro Snake</span>
+        {!open && <span className="chip">Retro Snake</span>}
         <ChevronUpIcon
           className="ml-auto h-4 w-4 shrink-0 text-[var(--text-faint)] transition-transform duration-200"
           style={{ transform: open ? 'rotate(180deg)' : 'none' }}
@@ -135,12 +143,9 @@ export function ArcadeDock() {
       </button>
 
       {open && (
-        <div
-          className="flex gap-4 px-3 pb-3"
-          style={{ borderTop: '1px solid var(--edge)', paddingTop: '0.75rem' }}
-        >
+        <div className="flex gap-3 p-3">
           <div
-            className="aspect-[24/14] h-[9.5rem] shrink-0 rounded-[3px] p-1.5"
+            className="aspect-[24/14] h-[8.5rem] shrink-0 rounded-[3px] p-1.5"
             style={{
               background: 'var(--chrome-sunken)',
               border: '1px solid var(--amber-line)',
@@ -149,30 +154,24 @@ export function ArcadeDock() {
             <PreviewBoard />
           </div>
 
-          <div className="flex min-w-0 flex-col justify-between py-0.5">
-            <div>
-              <h2 className="mono text-[0.8125rem] font-semibold text-[var(--amber)]">
-                Retro Snake
-              </h2>
-              <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--text-dim)]">
-                Eat the dots.
-                <br />
-                Don&apos;t hit the walls.
-                <br />
-                Beat your high score.
-              </p>
-            </div>
+          <div className="flex w-[10rem] shrink-0 flex-col">
+            <h2 className="mono text-[0.8125rem] font-semibold text-[var(--amber)]">
+              Retro Snake
+            </h2>
+            <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--text-dim)]">
+              Eat the dots.
+              <br />
+              Don&apos;t hit the walls.
+              <br />
+              Beat your high score.
+            </p>
 
-            <div>
-              <p className="chip">High Score</p>
-              <p className="mono text-[0.8125rem] text-[var(--text)]">00000</p>
-            </div>
-          </div>
+            <p className="chip mt-3">High Score</p>
+            <p className="mono text-[0.8125rem] text-[var(--text)]">00000</p>
 
-          <div className="ml-auto flex items-end">
             <button
               type="button"
-              className="hit mono rounded px-4 py-1.5 text-[0.75rem] font-semibold tracking-wider uppercase"
+              className="hit mono mt-2 rounded py-1.5 text-[0.75rem] font-semibold tracking-wider uppercase"
               style={{
                 background: 'var(--chrome-raised)',
                 border: '1px solid var(--edge-bright)',

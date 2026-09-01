@@ -260,9 +260,8 @@ export function Desktop({ data }: { data: OsData }) {
             {body(win)}
           </Window>
         ))}
+        <ArcadeDock />
       </div>
-
-      <ArcadeDock />
 
       <Taskbar
         windows={windows}
