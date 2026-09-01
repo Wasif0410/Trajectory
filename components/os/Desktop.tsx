@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { playClick, playClose, playOpen } from '@/lib/audio'
 import { CalendarIcon, DocIcon, InfoIcon, LogIcon, RouteIcon } from './icons'
+import { ArcadeDock } from './ArcadeDock'
 import { Taskbar, type LauncherItem } from './Taskbar'
 import { Window } from './Window'
 import {
@@ -260,6 +261,8 @@ export function Desktop({ data }: { data: OsData }) {
           </Window>
         ))}
       </div>
+
+      <ArcadeDock />
 
       <Taskbar
         windows={windows}
