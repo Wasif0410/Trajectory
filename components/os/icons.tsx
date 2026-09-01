@@ -164,3 +164,17 @@ export const GridIcon: IconComponent = (props) => (
     <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1" />
   </Icon>
 )
+
+export const GamepadIcon: IconComponent = (props) => (
+  <Icon {...props}>
+    <path d="M7.5 8.5h9a4.5 4.5 0 0 1 4.36 3.39l1.02 4.07A2.5 2.5 0 0 1 19.45 19c-.83 0-1.6-.41-2.06-1.1L16 16H8l-1.39 1.9c-.46.69-1.23 1.1-2.06 1.1a2.5 2.5 0 0 1-2.43-3.04l1.02-4.07A4.5 4.5 0 0 1 7.5 8.5z" />
+    <path d="M7 11.5v2.2M5.9 12.6h2.2" />
+    <path d="M16 12h.01M18 14h.01" />
+  </Icon>
+)
+
+export const ChevronUpIcon: IconComponent = (props) => (
+  <Icon {...props}>
+    <path d="m6 14.5 6-6 6 6" />
+  </Icon>
+)
