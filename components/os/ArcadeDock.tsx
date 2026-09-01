@@ -1,8 +1,9 @@
 'use client'
 
-import { useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { playClick, playClose, playOpen } from '@/lib/audio'
 import { ChevronUpIcon, GamepadIcon } from './icons'
+import { Snake } from './Snake'
 
 // --- open/closed preference -------------------------------------
 // Same shape as the music pref in lib/audio.ts: an external store rather than
@@ -41,6 +42,46 @@ function setOpen(open: boolean) {
     // Private mode or storage disabled; the session still honours the toggle.
   }
   openListeners.forEach((fn) => fn())
+}
+
+// --- high score -------------------------------------------------
+// Same store shape again. Kept here rather than inside Snake so the number
+// survives a game ending, the panel closing, and a reload.
+
+const HIGH_KEY = 'trajectory:arcade-high'
+const highListeners = new Set<() => void>()
+
+function subscribeHigh(onChange: () => void) {
+  highListeners.add(onChange)
+  return () => highListeners.delete(onChange)
+}
+
+function getHigh(): number {
+  if (typeof window === 'undefined') return 0
+  try {
+    const raw = Number(window.localStorage.getItem(HIGH_KEY))
+    return Number.isFinite(raw) && raw > 0 ? raw : 0
+  } catch {
+    return 0
+  }
+}
+
+function getHighServer(): number {
+  return 0
+}
+
+function setHigh(value: number) {
+  try {
+    window.localStorage.setItem(HIGH_KEY, String(value))
+  } catch {
+    // Session-only high score. Still worth showing.
+  }
+  highListeners.forEach((fn) => fn())
+}
+
+/** Five digits, so the readout does not jump width as the score climbs. */
+function pad(n: number): string {
+  return String(Math.min(n, 99_999)).padStart(5, '0')
 }
 
 /**
@@ -101,12 +142,55 @@ function PreviewBoard() {
 
 export function ArcadeDock() {
   const open = useSyncExternalStore(subscribeOpen, getOpen, getOpenServer)
+  const high = useSyncExternalStore(subscribeHigh, getHigh, getHighServer)
+
+  const [playing, setPlaying] = useState(false)
+  const [score, setScore] = useState(0)
+
+  // Both handlers are passed into Snake's game loop effect. They have to keep
+  // a stable identity or the effect tears down and restarts the loop mid-game,
+  // which reads as the snake stuttering every time the score changes.
+  const handleScore = useCallback((value: number) => setScore(value), [])
+
+  const handleGameOver = useCallback((final: number) => {
+    // Read the stored value rather than closing over it, so this does not
+    // need `high` as a dependency.
+    if (final > getHigh()) setHigh(final)
+  }, [])
+
+  /**
+   * Ends a run from outside the game. Banks the score first: stopping early
+   * is still a score you earned, and losing a good run to the Stop button
+   * would make the button feel like a punishment.
+   */
+  function finish() {
+    if (score > getHigh()) setHigh(score)
+    setPlaying(false)
+    setScore(0)
+  }
 
   function toggle() {
     const next = !open
     setOpen(next)
-    if (next) playOpen()
-    else playClose()
+    if (next) {
+      playOpen()
+    } else {
+      // Collapsing abandons the run rather than silently pausing it, so
+      // reopening always starts from the panel rather than a stale board.
+      playClose()
+      finish()
+    }
+  }
+
+  function start() {
+    playClick()
+    setScore(0)
+    setPlaying(true)
+  }
+
+  function stop() {
+    playClick()
+    finish()
   }
 
   return (
@@ -151,37 +235,52 @@ export function ArcadeDock() {
               border: '1px solid var(--amber-line)',
             }}
           >
-            <PreviewBoard />
+            {playing ? (
+              <Snake onScore={handleScore} onGameOver={handleGameOver} />
+            ) : (
+              <PreviewBoard />
+            )}
           </div>
 
           <div className="flex w-[10rem] shrink-0 flex-col">
             <h2 className="mono text-[0.8125rem] font-semibold text-[var(--amber)]">
               Retro Snake
             </h2>
-            <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--text-dim)]">
-              Eat the dots.
-              <br />
-              Don&apos;t hit the walls.
-              <br />
-              Beat your high score.
-            </p>
+
+            {playing ? (
+              <>
+                <p className="chip mt-2">Score</p>
+                <p className="mono text-[1.125rem] leading-tight text-[var(--snake)]">
+                  {pad(score)}
+                </p>
+                <p className="chip mt-2 text-[var(--text-faint)]">
+                  Arrows or WASD
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-[0.75rem] leading-relaxed text-[var(--text-dim)]">
+                Eat the dots.
+                <br />
+                Don&apos;t hit the walls.
+                <br />
+                Beat your high score.
+              </p>
+            )}
 
             <p className="chip mt-3">High Score</p>
-            <p className="mono text-[0.8125rem] text-[var(--text)]">00000</p>
+            <p className="mono text-[0.8125rem] text-[var(--text)]">{pad(high)}</p>
 
             <button
               type="button"
               className="hit mono mt-2 rounded py-1.5 text-[0.75rem] font-semibold tracking-wider uppercase"
               style={{
-                background: 'var(--chrome-raised)',
-                border: '1px solid var(--edge-bright)',
-                color: 'var(--text-faint)',
-                cursor: 'not-allowed',
+                background: playing ? 'var(--chrome-raised)' : 'var(--amber)',
+                border: `1px solid ${playing ? 'var(--edge-bright)' : 'var(--amber)'}`,
+                color: playing ? 'var(--text-dim)' : '#0a0a0c',
               }}
-              disabled
-              onClick={playClick}
+              onClick={playing ? stop : start}
             >
-              Play ▶
+              {playing ? 'Stop ■' : 'Play ▶'}
             </button>
           </div>
         </div>
