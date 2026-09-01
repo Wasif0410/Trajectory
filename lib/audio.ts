@@ -294,3 +294,54 @@ export function stopMusic() {
     musicBus.gain.linearRampToValueAtTime(0, t + 1.2)
   }
 }
+
+// --- arcade -----------------------------------------------------
+
+/** A bright blip when the snake eats. Short enough to fire every tick. */
+export function playEat() {
+  if (!sfxOn) return
+  const c = audio()
+  if (!c || !sfxBus) return
+
+  const t = c.currentTime
+  const osc = c.createOscillator()
+  osc.type = 'square'
+  osc.frequency.setValueAtTime(660, t)
+  osc.frequency.exponentialRampToValueAtTime(1320, t + 0.06)
+
+  const env = c.createGain()
+  env.gain.setValueAtTime(0.0001, t)
+  env.gain.exponentialRampToValueAtTime(0.07, t + 0.008)
+  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.09)
+
+  osc.connect(env).connect(sfxBus)
+  osc.start(t)
+  osc.stop(t + 0.1)
+}
+
+/** Three falling tones. The only sound here longer than a tenth of a second. */
+export function playGameOver() {
+  if (!sfxOn) return
+  const c = audio()
+  if (!c || !sfxBus) return
+
+  const t = c.currentTime
+  ;[
+    { f: 392.0, at: 0 },
+    { f: 311.13, at: 0.11 },
+    { f: 196.0, at: 0.22 },
+  ].forEach(({ f, at }) => {
+    const osc = c.createOscillator()
+    osc.type = 'triangle'
+    osc.frequency.value = f
+
+    const env = c.createGain()
+    env.gain.setValueAtTime(0.0001, t + at)
+    env.gain.exponentialRampToValueAtTime(0.12, t + at + 0.015)
+    env.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.3)
+
+    osc.connect(env).connect(sfxBus!)
+    osc.start(t + at)
+    osc.stop(t + at + 0.34)
+  })
+}
