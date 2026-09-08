@@ -1,6 +1,12 @@
 'use client'
 
-import { CATEGORY_LABEL, formatDate, formatDateShort, type Category } from '@/lib/content'
+import {
+  CATEGORY_LABEL,
+  checkInLabel,
+  formatDate,
+  formatDateShort,
+  type Category,
+} from '@/lib/content'
 import { FileGrid, type FileItem } from './FileGrid'
 import { CalendarIcon } from './icons'
 import { CATEGORY_ICON, type OsData, type RenderedEntry, type View } from './types'
@@ -16,7 +22,7 @@ export function LearnedView({ data, compact, open }: ViewProps) {
   const items: FileItem[] = data.days.map((day) => ({
     key: day.date,
     label: formatDateShort(day.date),
-    meta: `${day.total} ${day.total === 1 ? 'item' : 'items'}`,
+    meta: checkInLabel(day.date) ?? `${day.total} ${day.total === 1 ? 'item' : 'items'}`,
     icon: CalendarIcon,
     onOpen: () => open({ type: 'day', date: day.date }),
   }))
@@ -52,7 +58,15 @@ export function DayView({
   return (
     <div className="flex h-full flex-col">
       <div className="shrink-0 px-3 pt-3">
-        <p className="chip">{formatDate(date)}</p>
+        <p className="chip">
+          {formatDate(date)}
+          {checkInLabel(date) && (
+            <span className="text-[var(--amber-deep)]">
+              {' · '}
+              {checkInLabel(date)}
+            </span>
+          )}
+        </p>
       </div>
       <div className="min-h-0 flex-1">
         <FileGrid items={items} compact={compact} />

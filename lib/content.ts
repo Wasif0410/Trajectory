@@ -41,7 +41,8 @@ export interface DaySummary {
 export interface Stats {
   total: number
   days: number
-  streak: number
+  /** Consecutive ISO weeks with at least one entry. */
+  weekStreak: number
   counts: Record<Category, number>
   firstDate?: string
 }
@@ -80,18 +81,38 @@ function shiftDate(iso: string, days: number): string {
 }
 
 /**
- * Consecutive days ending today or yesterday. Yesterday still counts, because
- * today may simply not be written yet — otherwise every morning shows a zero.
+ * The Monday of the week a date falls in, as an ISO date. Weeks start Monday
+ * to match the Monday and Friday check-in rhythm the log is written on.
  */
-export function getStreak(dates: string[], today = todayISO()): number {
-  const seen = new Set(dates)
-  let cursor = seen.has(today) ? today : shiftDate(today, -1)
-  if (!seen.has(cursor)) return 0
+function weekStart(iso: string): string {
+  const d = new Date(Date.parse(iso))
+  // getUTCDay is 0 for Sunday, so Sunday has to reach back six days rather
+  // than forward one.
+  const back = (d.getUTCDay() + 6) % 7
+  return shiftDate(iso, -back)
+}
+
+/**
+ * Consecutive weeks with at least one entry, counting back from this week or
+ * last one.
+ *
+ * Days were the wrong unit once the log moved to Monday and Friday check-ins:
+ * those are never adjacent, so a consecutive-days count is pinned at 1 forever
+ * and stops meaning anything. The current week can still be empty without
+ * breaking the count, for the same reason today used to be allowed to be —
+ * it may simply not have been written yet.
+ */
+export function getWeekStreak(dates: string[], today = todayISO()): number {
+  const weeks = new Set(dates.map(weekStart))
+  const thisWeek = weekStart(today)
+
+  let cursor = weeks.has(thisWeek) ? thisWeek : shiftDate(thisWeek, -7)
+  if (!weeks.has(cursor)) return 0
 
   let streak = 0
-  while (seen.has(cursor)) {
+  while (weeks.has(cursor)) {
     streak += 1
-    cursor = shiftDate(cursor, -1)
+    cursor = shiftDate(cursor, -7)
   }
   return streak
 }
@@ -102,7 +123,7 @@ export function getStats(entries: EntryMeta[]): Stats {
   return {
     total: entries.length,
     days: new Set(dates).size,
-    streak: getStreak(dates),
+    weekStreak: getWeekStreak(dates),
     counts: countByCategory(entries),
     firstDate: dates.length ? dates[dates.length - 1] : undefined,
   }
@@ -116,6 +137,20 @@ export function formatDate(iso: string): string {
     day: 'numeric',
     timeZone: 'UTC',
   })
+}
+
+/**
+ * How a check-in day is framed. The log is written Monday and Friday, so those
+ * two are the bookends of a week rather than two arbitrary dates.
+ *
+ * Null for any other day. Entries written outside the rhythm are still real
+ * entries and should not be labelled as something they are not.
+ */
+export function checkInLabel(iso: string): string | null {
+  const day = new Date(`${iso}T00:00:00Z`).getUTCDay()
+  if (day === 1) return 'Start of week'
+  if (day === 5) return 'End of week'
+  return null
 }
 
 export function formatDateShort(iso: string): string {

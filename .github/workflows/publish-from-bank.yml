@@ -1,8 +1,13 @@
 name: Publish from bank
 
-# Every day should end with one professional, one personal and one cool fact.
-# This draws one from each category in the private bank, committing each
-# separately.
+# The log is written as two check-ins a week, Monday and Friday, each with one
+# professional, one personal and one cool fact. This draws from the private
+# bank to complete a check-in day you did not write yourself, committing each
+# category separately.
+#
+# Nothing is drawn on any other day. A log that fills every square of the
+# calendar says you wrote every day, which was never true — the gaps are the
+# honest part.
 #
 # Writing your own entry wins: a category already filed for today is left
 # alone and the bank fills the rest.
@@ -90,6 +95,14 @@ jobs:
           # already complete is skipped, so on an ordinary night this extra
           # pass does nothing at all.
           for date in "$prev" "$target"; do
+            # 1 is Monday, 5 is Friday. Every other day is left alone, which
+            # is what produces the gaps.
+            dow=$(date -d "$date" +%u)
+            if [ "$dow" != "1" ] && [ "$dow" != "5" ]; then
+              echo "$date is not a check-in day. Skipping."
+              continue
+            fi
+
             for category in professional personal fact; do
               echo "::group::$date $category"
               node scripts/publish-from-bank.mjs --category="$category" --date="$date" $DRY
