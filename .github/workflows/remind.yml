@@ -15,7 +15,14 @@ name: Nightly reminder
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # 23:00 UTC is 19:00 in Toronto during EDT and 18:00 during EST, which is
+    # why the window below opens at 18:00 rather than 19:00 — otherwise an
+    # on-time run would be turned away for half the year.
+    #
+    # Set an hour earlier than feels natural on purpose. GitHub has been
+    # delivering this trigger about two and a half hours late, and the run has
+    # to land inside the window or the nudge is dropped in silence.
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
 permissions:
@@ -45,13 +52,17 @@ jobs:
           if [ "$dow" != "1" ] && [ "$dow" != "5" ]; then
             echo "Not a check-in day (weekday $dow). Skipping the nudge."
             echo "send=false" >> "$GITHUB_OUTPUT"
-          elif [ "$hour" -ge 19 ] && [ "$hour" -le 22 ]; then
+          elif [ "$hour" -ge 18 ]; then
             echo "Toronto hour is $hour. In the window."
             echo "send=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Toronto hour is $hour, outside 19:00-22:59. Skipping the nudge."
+            echo "Toronto hour is $hour, before 18:00. Skipping the nudge."
             echo "send=false" >> "$GITHUB_OUTPUT"
           fi
+
+          # No upper bound is needed. The hour cannot exceed 23, and a run that
+          # slips past midnight lands on a day the check-in test above already
+          # rejects, so the day boundary closes the window on its own.
 
       - uses: actions/checkout@v4
         if: steps.window.outputs.send == 'true'
