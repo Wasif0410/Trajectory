@@ -1,8 +1,8 @@
 name: Nightly reminder
 
-# A nudge at 8pm on a check-in day if it is still short. The bank does not
-# draw until 01:30, so the whole evening is yours to write in — which is the
-# point. The bank is the fallback, not the plan.
+# A nudge at 8pm on a check-in day if it is still short. Nothing else runs
+# until well after midnight, so the whole evening is yours to write in, which
+# is the point.
 #
 # Monday and Friday only. Nudging on a day you were never expected to write is
 # noise, and noise is how a real reminder gets ignored.
@@ -10,8 +10,8 @@ name: Nightly reminder
 # 00:00 UTC is 20:00 in Toronto during EDT and 19:00 during EST.
 #
 # This runs on GITHUB_TOKEN rather than a PAT. Opening an issue needs only
-# issues:write, which the built-in token has by default, so this workflow
-# cannot fail the way publish-from-bank did when its PAT lacked a scope.
+# issues:write, which the built-in token has by default, so there is no
+# credential here that can quietly expire.
 
 on:
   schedule:
@@ -64,7 +64,7 @@ jobs:
       - name: Check which categories are filed
         id: check
         if: steps.window.outputs.send == 'true'
-        run: node scripts/publish-from-bank.mjs --report
+        run: node scripts/report-day.mjs
 
       - name: Nudge, or clear the nudge
         if: steps.window.outputs.send == 'true'
@@ -118,4 +118,4 @@ jobs:
             --assignee Wasif0410 \
             --body "Still missing for $today: **$MISSING**.
 
-          Run \`/trajectory\` to write them yourself. Anything still missing at 22:30 gets drawn from the bank instead."
+          Run \`/trajectory\` to write them yourself."
