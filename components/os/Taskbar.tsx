@@ -157,7 +157,7 @@ export function Taskbar({
               trajectory
             </p>
             <p className="chip mt-0.5">
-              {data.stats.total} entries · {data.stats.days} days · {data.stats.streak}d streak
+              {data.stats.total} entries · {data.stats.days} days · {data.stats.weekStreak}w streak
             </p>
           </div>
 

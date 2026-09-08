@@ -1,8 +1,11 @@
 name: Nightly reminder
 
-# A nudge at 8pm if the day is still short. The bank no longer draws until
-# 01:30, so the whole evening is yours to write in — which is the point. The
-# bank is the fallback, not the plan.
+# A nudge at 8pm on a check-in day if it is still short. The bank does not
+# draw until 01:30, so the whole evening is yours to write in — which is the
+# point. The bank is the fallback, not the plan.
+#
+# Monday and Friday only. Nudging on a day you were never expected to write is
+# noise, and noise is how a real reminder gets ignored.
 #
 # 00:00 UTC is 20:00 in Toronto during EDT and 19:00 during EST.
 #
@@ -37,8 +40,12 @@ jobs:
         id: window
         run: |
           hour=$(TZ=America/Toronto date +%-H)
+          dow=$(TZ=America/Toronto date +%u)
 
-          if [ "$hour" -ge 19 ] && [ "$hour" -le 22 ]; then
+          if [ "$dow" != "1" ] && [ "$dow" != "5" ]; then
+            echo "Not a check-in day (weekday $dow). Skipping the nudge."
+            echo "send=false" >> "$GITHUB_OUTPUT"
+          elif [ "$hour" -ge 19 ] && [ "$hour" -le 22 ]; then
             echo "Toronto hour is $hour. In the window."
             echo "send=true" >> "$GITHUB_OUTPUT"
           else
