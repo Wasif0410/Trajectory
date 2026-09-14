@@ -2,7 +2,7 @@
 
 > **Everything in this log is written by me.** On a day I don't have time to
 > sit down and write, I pre-write entries ahead of time so the day still gets
-> filled if I forget. Nothing here is generated.
+> filled if I forget. Nothing here is Fake lol 😆.
 
 A desktop environment for a daily learning log.
 
