@@ -9,3 +9,5 @@ Every day I file what I picked up into one of three folders: **Professional**,
 you can browse, drag around, and stack.
 
 This isn't a portfolio. It's the place things go before they evaporate.
+Everything here is written by me — on days I don't have time, I pre-write
+entries ahead of time so the day still gets filled if I forget.
